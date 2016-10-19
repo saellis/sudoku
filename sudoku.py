@@ -5,12 +5,12 @@ class Game(object):
 
     def row(self, r, c, coords=False):
         if coords:
-            return [(i, r) or i in range(9)]
+            return [(i, r) for i in range(9)]
         return [x for x in self.board[r] if x != 0]
 
     def column(self, r, c, coords=False):
         if coords:
-            return [(c, i) or i in range(9)]
+            return [(c, i) for i in range(9)]
         return [row[c] for row in self.board if row[c] != 0]
 
     def square(self, row, col, coords=False):
