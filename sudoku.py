@@ -1,5 +1,3 @@
-import copy
-
 
 class Game(object):
     def __init__(self, **kwargs):
@@ -83,11 +81,11 @@ class Game(object):
         if r == c == -1:
             return self
         for digit in self.possible_values(r, c):
-            new = copy.deepcopy(self)
-            new.board[r][c] = digit
-            att = new.rec_solve(*new.next_empty())
+            self.board[r][c] = digit
+            att = self.rec_solve(*self.next_empty())
             if att:
                 return att
+            self.board[r][c] = 0
         return False
 
 
