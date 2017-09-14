@@ -127,6 +127,7 @@ if __name__ == '__main__':
     img = read_file('game_img_1.png')
     img = resize(img, 1000.)
     original = img.copy()
+    show(original)
     preprocessed = preprocess(img)
     boxes = define_digit_boxes(preprocessed)
 
