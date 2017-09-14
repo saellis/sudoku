@@ -1,10 +1,13 @@
 # sudoku
-Sudoku solver using OCR and AI
+Sudoku solver using openCV and Tesseract OCR
 
-The end goal of this project is to transform an image of an incomplete sudoku board into a finished solution.
+Given an image of an incomplete sudoku board, read the board values, solve it, and redisplay the image with a completed board.
+
 
 ## todo
-- Build a sudoku solver
-- Get OCR working with openCV
-- connect them
-- make it a working python package -> pypi???
+- Update readme
+
+
+## Future work
+- Generalize image transformation and printing to work for multiple types of sudoku board (hand written, images from a newspaper, etc.)
+- Update sudoku algorithm to be anything better than brute force

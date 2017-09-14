@@ -1,99 +1,136 @@
-
-class Game(object):
-    def __init__(self, **kwargs):
-        self.board = self.readfile(kwargs.get('filename', 'game.txt'))
-
-    def row(self, r, c, coords=False):
-        if coords:
-            return [(i, r) for i in range(9)]
-        return [x for x in self.board[r] if x != 0]
-
-    def column(self, r, c, coords=False):
-        if coords:
-            return [(c, i) for i in range(9)]
-        return [row[c] for row in self.board if row[c] != 0]
-
-    def square(self, row, col, coords=False):
-        '''Returns a list of the 9 digits in this coordinate's square
-           will be less than 9 if there are blanks
-           coords: return list of all coordinates in square'''
-        if not 0 <= row <= 8 or not 0 <= col <= 8:
-            return None
-        result = {}
-        key = 0
-        for rx in range(3):
-            for cx in range(3):
-                result[key] = [(r, c) for r in range(rx * 3, rx * 3 + 3)
-                                for c in range(cx * 3, cx * 3 + 3)]
-                key += 1
-        for k in range(9):
-            if (row, col) in result[k]:
-                if coords:
-                    return result[k]
-                curr = result[k]
-        return [self.board[r][c] for r, c in curr if self.board[r][c] != 0]
-
-    def possible_values(self, r, c):
-        taken = set(self.row(r, c) + self.column(r, c) + self.square(r ,c))
-        return list(set(range(1, 10)).difference(taken))
-
-    @property
-    def complete(self):
-        flat = [num for sublist in self.board for num in sublist]
-        return 0 not in flat
-
-    @property
-    def valid(self):
-        for r in self.board:
-            if set(r) != set(range(1, 10)):
-                return False
-        for c in range(9):
-            col = set([row[c] for row in self.board])
-            if col != set(range(1, 10)):
-                return False
-        for r, c in [(r, c) for r in [0, 3, 6] for c in [0, 3, 6]]:
-            if set(self.square(r, c)) != set(range(1, 10)):
-                return False
-        return True
-
-    @staticmethod
-    def readfile(filename):
-        g = []
-        with open(filename, 'r') as f:
-            for line in f:
-                g.append([int(x) for x in line.split(' ')])
-        return g
-
-    def next_empty(self):
-        for r, row in enumerate(self.board):
-            for c, value in enumerate(row):
-                if value == 0:
-                    return r, c
-        return -1, -1
-
-    def solve(self):
-        if (-1, -1) == self.next_empty():
-            print self.board
-        solved = self.rec_solve(*self.next_empty())
-        print solved.board
-
-    def rec_solve(self, r, c):
-        if r == c == -1:
-            return self
-        for digit in self.possible_values(r, c):
-            self.board[r][c] = digit
-            att = self.rec_solve(*self.next_empty())
-            if att:
-                return att
-            self.board[r][c] = 0
-        return False
+import cv2
+import numpy as np
+from board import Board
+try:
+    import Image
+except ImportError:
+    from PIL import Image
+import pytesseract
 
 
-def main(g):
-    g.solve()
+def show(image):
+    cv2.imshow('', image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
+
+def remove_rows(img):
+    """
+    Removes horizontal lines from image
+    """
+    img2 = img.copy()
+    rows_to_del = []
+    for i, row in enumerate(img2):
+        if max(row) == min(row):
+            rows_to_del.append(i)
+    for i in reversed(rows_to_del):
+        img2 = np.delete(img2, i, 0)
+    return img2
+
+
+def remove_cols(img):
+    """
+    Removes vertical lines from image
+    """
+    return np.transpose(remove_rows(np.transpose(img)))
+
+
+def read_digit(img):
+    """
+    Converts image of a number to float
+    """
+    pil = Image.fromarray(img.astype('uint8'))
+    num = pytesseract.image_to_string(pil, config='--psm 10 -c tessedit_char_whitelist=123456789')
+    return float(num)
+
+
+def read_file(filename):
+    return cv2.imread(filename)
+
+
+def resize(img, max_height=1000.):
+    if len(img) > max_height:
+        new_height = max_height
+        new_width = len(img[0]) / (len(img) / max_height)
+        return cv2.resize(img, (int(new_height), int(new_width)))
+
+
+def preprocess(img):
+    # convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    # apply gaussian blur
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+    # apply threshold/morph
+    thresh = cv2.threshold(blur, 0, 255, cv2.THRESH_BINARY_INV | cv2.THRESH_OTSU)[1]
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (1, 5))
+    img = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    # remove row and column lines
+    img = remove_cols(img)
+    return remove_rows(img)
+
+
+def define_digit_boxes(img, display=False):
+    cnts = cv2.findContours(img.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[1]
+    boxes = []
+    for c in cnts:
+        box = cv2.boundingRect(c)
+        if 500 > box[2] > 5 and 500 > box[3] > 5:
+            boxes.append(box)
+
+    if display:
+        img2 = img.copy()
+        for (x, y, w, h) in boxes:
+            cx = x / (len(img) / 9)
+            cy = y / (len(img[0]) / 9)
+            string = '({}, {})'.format(cx, cy)
+            cv2.rectangle(img2, (x, y), (x+w, y+h), (0, 255, 0), 3)
+            cv2.putText(img2, string, (x+w-60, y+h+20), color=(255, 0, 0), fontFace=1, fontScale=1)
+        show(img2)
+
+    return boxes
+
+
+def populate_board(img, boxes):
+    """
+    Populates board with OCR'd numbers from img
+    """
+    board = np.zeros((9, 9))
+    for (x, y, w, h) in boxes:
+        cx = x / (len(img) / 9)
+        cy = y / (len(img[0]) / 9)
+        board[cx][cy] = read_digit(img[y - 10:y + h + 10, x - 10:x + w + 10])
+
+    board = np.transpose(board).tolist()
+    return [[int(x) for x in row] for row in board]
+
+
+def solve_board(board):
+    solvable = Board(board=board)  # worst line of code ever
+    solvable.solve()  # second worst line of code ever
+    return solvable.answer
+
+
+def paint_answers(img, answers):
+    img = img.copy()
+    factor = len(img) / 9
+    for x, row in enumerate(answers):
+        for y, val in enumerate(row):
+            if val > 0:
+                cv2.putText(img, str(val), (int((y + 0.25) * factor), int((x + 0.75) * factor)),
+                            color=(0, 0, 255), fontFace=1, fontScale=4)
+
+    return img
 
 
 if __name__ == '__main__':
-    game = Game(filename='game.txt')
-    main(game)
+
+    img = read_file('game_img_1.png')
+    img = resize(img, 1000.)
+    original = img.copy()
+    preprocessed = preprocess(img)
+    boxes = define_digit_boxes(preprocessed)
+
+    board = populate_board(preprocessed, boxes)
+    answers = solve_board(board)
+    result_img = paint_answers(original, answers)
+    show(result_img)
